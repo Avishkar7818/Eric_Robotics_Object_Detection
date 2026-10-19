@@ -1,0 +1,7 @@
+hfov_deg: 70          # replace after calibration
+focal_px: null        # if you calibrate, put the value here (overrides hfov)
+real_height_m:
+  cone: 0.70
+  barrier: 1.00
+  stop_sign: 0.75
+  
