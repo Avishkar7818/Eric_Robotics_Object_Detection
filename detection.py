@@ -1,23 +1,22 @@
 
 import cv2
-import time
 from ultralytics import YOLO
 
+# Load your trained object detection model
 model = YOLO("best.pt")
 
+# Open webcam
 cap = cv2.VideoCapture(0)
 
 if not cap.isOpened():
-    raise RuntimeError("Could not open webcam.")
+    print("Error: Cannot open webcam.")
+    raise SystemExit
 
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-
-# PLACEHOLDER values: calibrate your actual camera.
+# Camera calibration value (example only)
 FOCAL_LENGTH_PX = 700.0
 
-# Approximate physical heights in metres.
-# Replace with measurements of your actual target objects.
+# Approximate real-world object heights in metres.
+# Adjust these to the actual object being detected.
 OBJECT_HEIGHTS = {
     "cone": 0.50,
     "barrier": 0.80,
@@ -25,15 +24,21 @@ OBJECT_HEIGHTS = {
     "stop-sign": 0.75,
 }
 
+# Lower confidence threshold if detections are being missed
 CONFIDENCE = 0.25
 
+print("Distance measurement started.")
+print("Press Q to quit.")
+
 while True:
-    success, frame = cap.read()
-    if not success:
+    ret, frame = cap.read()
+
+    if not ret:
+        print("Error: Could not read webcam.")
         break
 
     results = model.predict(
-        frame,
+        source=frame,
         imgsz=416,
         conf=CONFIDENCE,
         device="cpu",
@@ -44,11 +49,13 @@ while True:
 
     for box in results[0].boxes:
         class_id = int(box.cls[0])
-        confidence = float(box.conf[0])
         class_name = model.names[class_id]
         normalized_name = class_name.lower().replace(" ", "_")
 
-        x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+        x1, y1, x2, y2 = map(
+            int, box.xyxy[0].tolist()
+        )
+
         box_height_px = y2 - y1
 
         if box_height_px <= 0:
@@ -56,18 +63,25 @@ while True:
 
         real_height_m = OBJECT_HEIGHTS.get(normalized_name)
 
+        # Estimate distance only when object height is known
         if real_height_m is not None:
             distance_m = (
                 FOCAL_LENGTH_PX * real_height_m / box_height_px
             )
-            label = f"{class_name}, {distance_m:.1f}m"
+            label = f"{class_name}: {distance_m:.2f} m"
         else:
-            label = f"{class_name}, {confidence:.2f}"
+            label = f"{class_name}: distance unavailable"
 
+        # Draw bounding box
         cv2.rectangle(
-            output, (x1, y1), (x2, y2), (0, 255, 0), 2
+            output,
+            (x1, y1),
+            (x2, y2),
+            (0, 255, 0),
+            2
         )
 
+        # Draw class and estimated distance
         cv2.putText(
             output,
             label,
@@ -78,7 +92,7 @@ while True:
             2
         )
 
-    cv2.imshow("Object Detection + Distance Estimation", output)
+    cv2.imshow("Distance Measurement", output)
 
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break
